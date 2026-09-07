@@ -1,12 +1,21 @@
-// Command sanitize-schema strips literal null entries from every "enum"
-// array in a copy of the pinned DefectDojo OpenAPI document, working around
-// https://github.com/oapi-codegen/oapi-codegen/issues/1736: a null entry in
-// an enum makes oapi-codegen emit the invalid Go literal <nil> instead of
-// the nil keyword. DefectDojo marks nullable choice fields with a separate
-// "nullable": true, so dropping the null entry from the enum list loses no
-// information oapi-codegen would have used correctly anyway. The pinned
-// schema file itself is never modified; this writes a sanitized copy for
-// oapi-codegen to read instead.
+// Command sanitize-schema fixes two DefectDojo OpenAPI quirks in a copy of
+// the pinned schema before oapi-codegen sees it. Neither touches the pinned
+// file itself; this only ever writes a sanitized copy for oapi-codegen to
+// read instead.
+//
+//  1. Nullable choice fields list null alongside their real enum values.
+//     oapi-codegen turns that into the invalid Go literal <nil> instead of
+//     nil (oapi-codegen/oapi-codegen#1736, still open). DefectDojo marks
+//     nullability separately via "nullable": true, so dropping null from
+//     the enum list loses no information oapi-codegen would have used
+//     correctly anyway.
+//  2. Several date/date-time filter parameters (django-filter's numeric
+//     date-range shortcut, e.g. "today", "past 7 days") carry a stray
+//     enum: [1,2,3,4,5,6,7,null] that contradicts the field's own
+//     type/format. oapi-codegen can't generate a valid Go constant for an
+//     integer enum on a date-time-typed field ("invalid constant type").
+//     The field stays a plain date/date-time string; only that bogus enum
+//     is dropped.
 package main
 
 import (
@@ -33,7 +42,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	stripNullEnums(doc)
+	sanitize(doc)
 
 	out, err := json.Marshal(doc)
 	if err != nil {
@@ -47,11 +56,15 @@ func main() {
 	}
 }
 
-func stripNullEnums(v any) {
+var dateFormats = map[string]bool{"date-time": true, "date": true}
+
+func sanitize(v any) {
 	switch node := v.(type) {
 	case map[string]any:
-		if enumVal, ok := node["enum"]; ok {
-			if arr, ok := enumVal.([]any); ok {
+		if _, hasEnum := node["enum"]; hasEnum {
+			if format, ok := node["format"].(string); ok && dateFormats[format] {
+				delete(node, "enum")
+			} else if arr, ok := node["enum"].([]any); ok {
 				filtered := arr[:0]
 				for _, e := range arr {
 					if e != nil {
@@ -62,11 +75,11 @@ func stripNullEnums(v any) {
 			}
 		}
 		for _, child := range node {
-			stripNullEnums(child)
+			sanitize(child)
 		}
 	case []any:
 		for _, child := range node {
-			stripNullEnums(child)
+			sanitize(child)
 		}
 	}
 }
