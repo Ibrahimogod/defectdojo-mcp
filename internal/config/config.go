@@ -10,11 +10,19 @@ import (
 	"time"
 )
 
+type Transport string
+
+const (
+	TransportStdio Transport = "stdio"
+	TransportHTTP  Transport = "http"
+)
+
 type Config struct {
 	DojoBaseURL       string
+	Transport         Transport
 	ListenAddr        string
 	EnableDestructive bool
-	SharedToken       string
+	APIToken          string
 	RequestTimeout    time.Duration
 	RateLimitRPS      float64
 	LogLevel          string
@@ -22,13 +30,15 @@ type Config struct {
 
 const (
 	envBaseURL     = "DOJO_BASE_URL"
+	envTransport   = "DOJO_MCP_TRANSPORT"
 	envListenAddr  = "DOJO_MCP_LISTEN_ADDR"
 	envDestructive = "DOJO_MCP_ENABLE_DESTRUCTIVE"
-	envSharedToken = "DOJO_MCP_SHARED_TOKEN"
+	envAPIToken    = "DOJO_API_TOKEN"
 	envReqTimeout  = "DOJO_MCP_REQUEST_TIMEOUT"
 	envRateLimit   = "DOJO_MCP_RATE_LIMIT_RPS"
 	envLogLevel    = "DOJO_MCP_LOG_LEVEL"
 
+	defaultTransport  = TransportStdio
 	defaultListenAddr = ":8080"
 	defaultTimeout    = 30 * time.Second
 	defaultRateLimit  = 5.0
@@ -42,11 +52,17 @@ var validLogLevels = map[string]bool{
 	"error": true,
 }
 
+var validTransports = map[Transport]bool{
+	TransportStdio: true,
+	TransportHTTP:  true,
+}
+
 func Load() (Config, error) {
 	cfg := Config{
 		DojoBaseURL:    os.Getenv(envBaseURL),
+		Transport:      Transport(strings.ToLower(getOr(envTransport, string(defaultTransport)))),
 		ListenAddr:     getOr(envListenAddr, defaultListenAddr),
-		SharedToken:    os.Getenv(envSharedToken),
+		APIToken:       os.Getenv(envAPIToken),
 		RequestTimeout: defaultTimeout,
 		RateLimitRPS:   defaultRateLimit,
 		LogLevel:       strings.ToLower(getOr(envLogLevel, defaultLogLevel)),
@@ -90,6 +106,14 @@ func (c Config) validate() error {
 	u, err := url.Parse(c.DojoBaseURL)
 	if err != nil || u.Scheme == "" || u.Host == "" {
 		return fmt.Errorf("%s: invalid URL %q", envBaseURL, c.DojoBaseURL)
+	}
+
+	if !validTransports[c.Transport] {
+		return fmt.Errorf("%s: invalid transport %q (want stdio|http)", envTransport, c.Transport)
+	}
+
+	if c.Transport == TransportStdio && c.APIToken == "" {
+		return fmt.Errorf("%s is required when %s=%s", envAPIToken, envTransport, TransportStdio)
 	}
 
 	if c.ListenAddr == "" {

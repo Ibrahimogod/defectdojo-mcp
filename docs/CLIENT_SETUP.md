@@ -1,25 +1,20 @@
 # Connecting AI clients to this server
 
-The server speaks MCP over **Streamable HTTP** at `http://<host>:<port>/mcp`
-(default port `8080`). Every client below needs two things:
+The default and recommended way to run this server is the same way you'd
+run any other containerized MCP server (grafana's, github's, etc.): your
+MCP client launches a container per session over stdio, you never manage a
+long-running process or a port yourself.
 
-1. That URL (`http://localhost:8080/mcp` for a local `docker compose up`, or
-   wherever you've deployed the container).
-2. Your own DefectDojo API token, sent as the header `Authorization: Token
-   <your-defectdojo-api-key>`. The DefectDojo auth scheme uses the word
-   `Token`, not `Bearer`; most client examples online say `Bearer` because
-   that's what most other APIs use, so don't copy that part over. Get your
-   token from your DefectDojo user profile. Per
-   [DESIGN.md §7](DESIGN.md#7-auth-model-detail), this server passes that
-   header straight through to DefectDojo on each request and never stores a
-   credential of its own, so whatever your DefectDojo account is allowed to
-   do is what the tools can do, and DefectDojo's own audit log shows your
-   name rather than a shared bot account.
+1. A DefectDojo API token, from your DefectDojo user profile.
+2. Docker or Podman installed (`docker`/`podman` interchangeable in every
+   example below).
+3. The image: `ghcr.io/ibrahimogod/defectdojo-mcp` (or build it yourself,
+   see the main [README](../README.md)).
 
-**Not usable yet.** The `/mcp` endpoint itself is planned but not yet
-implemented (see [DESIGN.md §8](DESIGN.md#8-phased-delivery-plan); Phase 0
-only ships `/healthz`). The steps below are what to run once a Phase 1+
-build is deployed. Until then, connecting will fail to find any tools.
+> **Not usable yet.** The MCP protocol itself isn't wired up in the server
+> code yet (see [DESIGN.md §8](DESIGN.md#8-roadmap)); today the container
+> only exposes a health check. The configs below are what to use once that
+> ships; until then, connecting will fail to find any tools.
 
 Client configuration formats change often. If something below doesn't match
 what you see in your client, check that client's own current MCP docs
@@ -29,20 +24,22 @@ Jump to: [Claude Code](#claude-code-cli) · [Claude Desktop](#claude-desktop--cl
 [Cursor](#cursor) · [VS Code](#vs-code-github-copilot-chat) ·
 [Windsurf](#windsurf) · [Zed](#zed) · [Cline](#cline-vs-code-extension) ·
 [Continue.dev](#continuedev) · [JetBrains AI Assistant](#jetbrains-ai-assistant-20261) ·
-[Gemini CLI](#gemini-cli) · [Any other client](#any-other-mcp-client)
+[Gemini CLI](#gemini-cli) · [Any other client](#any-other-mcp-client) ·
+[Running as a standing HTTP service instead](#running-as-a-standing-http-service-instead)
 
 ## Claude Code (CLI)
 
 ```bash
-claude mcp add --transport http defectdojo http://localhost:8080/mcp \
-  --header "Authorization: Token YOUR_DEFECTDOJO_TOKEN"
+claude mcp add defectdojo \
+  -e DOJO_BASE_URL=https://defectdojo.example.com \
+  -e DOJO_API_TOKEN=YOUR_DEFECTDOJO_TOKEN \
+  -- docker run -i --rm -e DOJO_BASE_URL -e DOJO_API_TOKEN ghcr.io/ibrahimogod/defectdojo-mcp
 ```
 
 `--scope project` writes a `.mcp.json` you can commit so a whole team gets
 the same server (each person still needs their own token; don't commit a
-real one, see the project-scoped example below). `--scope user` makes it
-available in every project instead of just this one (the default scope,
-`local`, is just this project for just you).
+real one). `--scope user` makes it available in every project instead of
+just this one.
 
 Verify with `claude mcp list` or `/mcp` inside a Claude Code session.
 
@@ -53,10 +50,11 @@ expansion rather than committed literally:
 {
   "mcpServers": {
     "defectdojo": {
-      "type": "http",
-      "url": "http://localhost:8080/mcp",
-      "headers": {
-        "Authorization": "Token ${DEFECTDOJO_API_TOKEN}"
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "DOJO_BASE_URL", "-e", "DOJO_API_TOKEN", "ghcr.io/ibrahimogod/defectdojo-mcp"],
+      "env": {
+        "DOJO_BASE_URL": "https://defectdojo.example.com",
+        "DOJO_API_TOKEN": "${DEFECTDOJO_API_TOKEN}"
       }
     }
   }
@@ -65,45 +63,30 @@ expansion rather than committed literally:
 
 ## Claude Desktop / claude.ai
 
-Native custom-connector support for remote MCP servers is OAuth-first. A
-static-header auth option ("Request headers") exists in some versions and
-plans under Settings → Connectors → Add custom connector → Advanced
-settings, but support for it is inconsistent across Claude Desktop versions.
-Worth trying first:
-
-1. Settings → Connectors → Add custom connector.
-2. Paste `http://localhost:8080/mcp` as the URL.
-3. If an "Advanced settings" / "Request headers" option appears, add header
-   `Authorization` = `Token YOUR_DEFECTDOJO_TOKEN`.
-
-If that option isn't there on your version, use the
-[`mcp-remote`](https://www.npmjs.com/package/mcp-remote) bridge instead.
-Claude Desktop still supports local stdio servers through the classic
-`claude_desktop_config.json`, and `mcp-remote` forwards a header-authenticated
-remote HTTP server through one of those:
+Claude Desktop's native custom-connector UI (Settings → Connectors) is for
+*remote* MCP servers reached over HTTP; a container launched over stdio
+isn't one of those, so this one goes in the classic
+`claude_desktop_config.json` instead: the same file, and the same shape,
+your other containerized MCP servers already use there:
 
 ```json
 {
   "mcpServers": {
     "defectdojo": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "http://localhost:8080/mcp",
-        "--header",
-        "Authorization: Token ${DEFECTDOJO_API_TOKEN}"
-      ],
+      "command": "docker",
+      "args": ["run", "--init", "-i", "--rm", "-e", "DOJO_BASE_URL", "-e", "DOJO_API_TOKEN", "ghcr.io/ibrahimogod/defectdojo-mcp"],
       "env": {
-        "DEFECTDOJO_API_TOKEN": "YOUR_DEFECTDOJO_TOKEN"
+        "DOJO_BASE_URL": "https://defectdojo.example.com",
+        "DOJO_API_TOKEN": "YOUR_DEFECTDOJO_TOKEN"
       }
     }
   }
 }
 ```
 
-`claude_desktop_config.json` location: `%APPDATA%\Claude\claude_desktop_config.json`
-on Windows, `~/Library/Application Support/Claude/claude_desktop_config.json`
-on macOS. Restart Claude Desktop after editing it.
+Location: `%APPDATA%\Claude\claude_desktop_config.json` on Windows,
+`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS.
+Restart Claude Desktop after editing it.
 
 ## Cursor
 
@@ -113,9 +96,11 @@ on macOS. Restart Claude Desktop after editing it.
 {
   "mcpServers": {
     "defectdojo": {
-      "url": "http://localhost:8080/mcp",
-      "headers": {
-        "Authorization": "Token ${env:DEFECTDOJO_API_TOKEN}"
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "DOJO_BASE_URL", "-e", "DOJO_API_TOKEN", "ghcr.io/ibrahimogod/defectdojo-mcp"],
+      "env": {
+        "DOJO_BASE_URL": "https://defectdojo.example.com",
+        "DOJO_API_TOKEN": "${env:DEFECTDOJO_API_TOKEN}"
       }
     }
   }
@@ -129,16 +114,18 @@ directly.
 ## VS Code (GitHub Copilot Chat)
 
 `.vscode/mcp.json` (workspace). Note the top-level key is `servers`, not
-`mcpServers`:
+`mcpServers`, and `"type": "stdio"` has to be explicit:
 
 ```json
 {
   "servers": {
     "defectdojo": {
-      "type": "http",
-      "url": "http://localhost:8080/mcp",
-      "headers": {
-        "Authorization": "Token ${input:defectdojo-token}"
+      "type": "stdio",
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "DOJO_BASE_URL", "-e", "DOJO_API_TOKEN", "ghcr.io/ibrahimogod/defectdojo-mcp"],
+      "env": {
+        "DOJO_BASE_URL": "https://defectdojo.example.com",
+        "DOJO_API_TOKEN": "${input:defectdojo-token}"
       }
     }
   },
@@ -165,9 +152,11 @@ of it ever living in the file.
 {
   "mcpServers": {
     "defectdojo": {
-      "serverUrl": "http://localhost:8080/mcp",
-      "headers": {
-        "Authorization": "Token YOUR_DEFECTDOJO_TOKEN"
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "DOJO_BASE_URL", "-e", "DOJO_API_TOKEN", "ghcr.io/ibrahimogod/defectdojo-mcp"],
+      "env": {
+        "DOJO_BASE_URL": "https://defectdojo.example.com",
+        "DOJO_API_TOKEN": "YOUR_DEFECTDOJO_TOKEN"
       }
     }
   }
@@ -178,35 +167,19 @@ of it ever living in the file.
 
 `settings.json`. macOS: `~/.config/zed/settings.json`. Windows:
 `%APPDATA%\Zed\settings.json`. Note the top-level key is `context_servers`,
-not `mcpServers`:
-
-```json
-{
-  "context_servers": {
-    "defectdojo": {
-      "url": "http://localhost:8080/mcp",
-      "headers": {
-        "Authorization": "Token YOUR_DEFECTDOJO_TOKEN"
-      }
-    }
-  }
-}
-```
-
-If Zed's direct-URL support doesn't pick up the header correctly on your
-version, fall back to the `mcp-remote` bridge, same idea as the Claude
-Desktop fallback above:
+not `mcpServers`, and a command-based entry needs `"source": "custom"`:
 
 ```json
 {
   "context_servers": {
     "defectdojo": {
       "source": "custom",
-      "command": "npx",
-      "args": [
-        "-y", "mcp-remote", "http://localhost:8080/mcp",
-        "--header", "Authorization:Token ${DEFECTDOJO_API_TOKEN}"
-      ]
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "DOJO_BASE_URL", "-e", "DOJO_API_TOKEN", "ghcr.io/ibrahimogod/defectdojo-mcp"],
+      "env": {
+        "DOJO_BASE_URL": "https://defectdojo.example.com",
+        "DOJO_API_TOKEN": "YOUR_DEFECTDOJO_TOKEN"
+      }
     }
   }
 }
@@ -216,17 +189,17 @@ Desktop fallback above:
 
 Edit via Cline's MCP Servers → Configure MCP Servers panel, which opens
 `cline_mcp_settings.json` (under the extension's VS Code global storage
-directory). Set `type` explicitly; omitting it falls back to the legacy SSE
-transport:
+directory):
 
 ```json
 {
   "mcpServers": {
     "defectdojo": {
-      "type": "streamableHttp",
-      "url": "http://localhost:8080/mcp",
-      "headers": {
-        "Authorization": "Token YOUR_DEFECTDOJO_TOKEN"
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "DOJO_BASE_URL", "-e", "DOJO_API_TOKEN", "ghcr.io/ibrahimogod/defectdojo-mcp"],
+      "env": {
+        "DOJO_BASE_URL": "https://defectdojo.example.com",
+        "DOJO_API_TOKEN": "YOUR_DEFECTDOJO_TOKEN"
       }
     }
   }
@@ -241,11 +214,19 @@ under `.continue/`):
 ```yaml
 mcpServers:
   - name: defectdojo
-    type: streamable-http
-    url: http://localhost:8080/mcp
-    requestOptions:
-      headers:
-        Authorization: "Token ${{ secrets.DEFECTDOJO_API_TOKEN }}"
+    command: docker
+    args:
+      - run
+      - -i
+      - --rm
+      - -e
+      - DOJO_BASE_URL
+      - -e
+      - DOJO_API_TOKEN
+      - ghcr.io/ibrahimogod/defectdojo-mcp
+    env:
+      DOJO_BASE_URL: https://defectdojo.example.com
+      DOJO_API_TOKEN: ${{ secrets.DEFECTDOJO_API_TOKEN }}
 ```
 
 Use Continue's own secrets mechanism for the token instead of a literal
@@ -261,32 +242,30 @@ paste:
 {
   "mcpServers": {
     "defectdojo": {
-      "url": "http://localhost:8080/mcp",
-      "headers": {
-        "Authorization": "Token YOUR_DEFECTDOJO_TOKEN"
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "DOJO_BASE_URL", "-e", "DOJO_API_TOKEN", "ghcr.io/ibrahimogod/defectdojo-mcp"],
+      "env": {
+        "DOJO_BASE_URL": "https://defectdojo.example.com",
+        "DOJO_API_TOKEN": "YOUR_DEFECTDOJO_TOKEN"
       }
     }
   }
 }
 ```
 
-Custom-header support for remote servers is inconsistently documented across
-JetBrains IDE versions. If the header isn't picked up, use the same
-`mcp-remote` stdio-bridge pattern shown for Claude Desktop above (JetBrains
-supports STDIO servers via a `command`/`args` entry the same way).
-
 ## Gemini CLI
 
-`~/.gemini/settings.json` (global) or `.gemini/settings.json` (project).
-Note the field is `httpUrl`, not `url`:
+`~/.gemini/settings.json` (global) or `.gemini/settings.json` (project):
 
 ```json
 {
   "mcpServers": {
     "defectdojo": {
-      "httpUrl": "http://localhost:8080/mcp",
-      "headers": {
-        "Authorization": "Token YOUR_DEFECTDOJO_TOKEN"
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "DOJO_BASE_URL", "-e", "DOJO_API_TOKEN", "ghcr.io/ibrahimogod/defectdojo-mcp"],
+      "env": {
+        "DOJO_BASE_URL": "https://defectdojo.example.com",
+        "DOJO_API_TOKEN": "YOUR_DEFECTDOJO_TOKEN"
       }
     }
   }
@@ -295,17 +274,82 @@ Note the field is `httpUrl`, not `url`:
 
 ## Any other MCP client
 
-If a client isn't listed above, it needs the same three things: a
-Streamable-HTTP transport type, the URL `http://<host>:8080/mcp`, and a
-custom header `Authorization: Token <your-defectdojo-api-key>`. Consult that
-client's own MCP documentation for its specific config shape.
+If a client isn't listed above, it needs to spawn:
+
+```
+docker run -i --rm -e DOJO_BASE_URL -e DOJO_API_TOKEN ghcr.io/ibrahimogod/defectdojo-mcp
+```
+
+with `DOJO_BASE_URL` and `DOJO_API_TOKEN` set in that command's environment,
+over stdio. Every client that supports local/stdio MCP servers has some
+version of a `command`/`args`/`env` config shape for exactly this; consult
+that client's own MCP documentation for its specific field names.
+
+## Running as a standing HTTP service instead
+
+For a shared deployment reachable by more than one person from a single
+running instance, set `DOJO_MCP_TRANSPORT=http` and run the container as a
+persistent service (`docker compose up`, or `docker run -p 8080:8080 ...`,
+see the main [README](../README.md)) rather than launching one per client
+session. `DOJO_API_TOKEN` becomes optional in this mode: if set, it's used
+as a fallback when a request arrives without its own credential; the
+primary mechanism is each caller supplying their own DefectDojo token via
+the MCP `Authorization: Token <key>` header on every request (see
+[DESIGN.md §7](DESIGN.md#7-auth-model-detail)).
+
+Client-side, this swaps the `command`/`args`/`env` block above for a
+`url`/`headers` block pointed at `http://<host>:8080/mcp`, in whatever shape
+that client uses for remote servers, and field names genuinely differ:
+`url`+`headers` (Claude Code, Cursor, VS Code with `"type": "http"`,
+Cline with `"type": "streamableHttp"`), `serverUrl` (Windsurf), `httpUrl`
+(Gemini CLI), or plain `context_servers.<name>.url` (Zed). The header is
+always the same regardless of client: `Authorization: Token
+<your-defectdojo-api-key>` (note the word `Token`, not `Bearer`, which is
+what most other APIs use and what most client examples online show.
+
+Claude Desktop's native connector UI (Settings → Connectors → Add custom
+connector) is built for this mode specifically, though its support for a
+static header (versus OAuth) is inconsistent across versions; the
+[`mcp-remote`](https://www.npmjs.com/package/mcp-remote) bridge is a
+reliable fallback if the native UI doesn't work on yours:
+
+```json
+{
+  "mcpServers": {
+    "defectdojo": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://localhost:8080/mcp",
+        "--header",
+        "Authorization: Token ${DEFECTDOJO_API_TOKEN}"
+      ],
+      "env": {
+        "DEFECTDOJO_API_TOKEN": "YOUR_DEFECTDOJO_TOKEN"
+      }
+    }
+  }
+}
+```
+
+(That bridge needs Node.js installed for `npx` to exist; if you'd rather
+avoid that dependency, the native connector UI is worth trying first.)
 
 ## Verifying the connection independent of any client
 
 [`@modelcontextprotocol/inspector`](https://github.com/modelcontextprotocol/inspector)
-can connect directly and list tools without any AI client in the loop, which
-is useful for confirming the server itself is reachable before debugging a
-client's config:
+can connect directly and list tools without any AI client in the loop,
+useful for confirming the server itself works before debugging a client's
+config. For stdio:
+
+```bash
+npx @modelcontextprotocol/inspector docker run -i --rm \
+  -e DOJO_BASE_URL=https://defectdojo.example.com \
+  -e DOJO_API_TOKEN=YOUR_DEFECTDOJO_TOKEN \
+  ghcr.io/ibrahimogod/defectdojo-mcp
+```
+
+For HTTP mode:
 
 ```bash
 npx @modelcontextprotocol/inspector http://localhost:8080/mcp \

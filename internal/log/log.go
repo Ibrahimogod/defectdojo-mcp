@@ -21,7 +21,9 @@ func New(level string) *slog.Logger {
 		lvl = slog.LevelInfo
 	}
 
-	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl})
+	// stderr, not stdout: stdio-transport MCP uses stdout for the JSON-RPC
+	// protocol stream itself, so any log line written there would corrupt it.
+	handler := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: lvl})
 	return slog.New(handler)
 }
 
