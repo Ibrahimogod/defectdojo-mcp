@@ -66,9 +66,6 @@ docker build -t defectdojo-mcp .
 diffs it against the pinned copy in `openapi/`. On Windows without `make`,
 run `scripts/refresh-schema.ps1` directly; it does the same thing.
 
-Podman works too: `podman build`/`podman run` are drop-in replacements for
-the `docker` commands above.
-
 ## License
 
 [MIT](LICENSE)

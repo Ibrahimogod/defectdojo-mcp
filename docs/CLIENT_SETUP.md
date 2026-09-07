@@ -6,8 +6,7 @@ MCP client launches a container per session over stdio, you never manage a
 long-running process or a port yourself.
 
 1. A DefectDojo API token, from your DefectDojo user profile.
-2. Docker or Podman installed (`docker`/`podman` interchangeable in every
-   example below).
+2. Docker installed.
 3. The image: `ghcr.io/ibrahimogod/defectdojo-mcp` (or build it yourself,
    see the main [README](../README.md)).
 
