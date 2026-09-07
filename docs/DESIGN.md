@@ -63,7 +63,7 @@ it's discussed rather than silently redone.
       findings.go                # search/get/update/close/verify/accept-risk/notes/tags/metadata
       risk_acceptance.go
       products_engagements_tests.go
-      scans.go                   # import-scan / reimport-scan (phase 3)
+      scans.go                   # import-scan / reimport-scan, see #7
       jira.go
       discovery.go                # dojo_list_operations / describe_operation / call_operation
       summarize.go                # shared: trims finding/product/etc JSON down to what's actually
