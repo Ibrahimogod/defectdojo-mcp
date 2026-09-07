@@ -1,0 +1,13 @@
+services:
+  defectdojo-mcp:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      # Point this at your own DefectDojo instance, e.g. https://defectdojo.example.com
+      DOJO_BASE_URL: ${DOJO_BASE_URL:?set DOJO_BASE_URL to your DefectDojo instance URL}
+      DOJO_MCP_LISTEN_ADDR: ":8080"
+      DOJO_MCP_ENABLE_DESTRUCTIVE: "false"
+      DOJO_MCP_REQUEST_TIMEOUT: "30s"
+      DOJO_MCP_RATE_LIMIT_RPS: "5"
+      DOJO_MCP_LOG_LEVEL: "info"
