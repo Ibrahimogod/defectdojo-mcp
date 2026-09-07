@@ -8,14 +8,14 @@ manage tags. It also reaches the rest of the DefectDojo API through a small
 set of generic discovery tools. Written in Go, runs as a single Docker
 container speaking MCP over Streamable HTTP.
 
-See [docs/DESIGN.md](docs/DESIGN.md) for the full design rationale, tool
-inventory, and phased roadmap.
+See [docs/DESIGN.md](docs/DESIGN.md) for the design rationale and tool
+inventory.
 
 ## Status
 
-Early scaffold. See [docs/DESIGN.md §8](docs/DESIGN.md#8-phased-delivery-plan)
-for what's implemented versus planned. The MCP tools themselves aren't wired
-up yet; today the server only exposes `/healthz`.
+Early scaffold. Open [issues](https://github.com/Ibrahimogod/defectdojo-mcp/issues)
+track what's next; the MCP tools themselves aren't wired up yet, so today
+the server only exposes `/healthz`.
 
 ## Running it
 
@@ -62,23 +62,8 @@ docker build -t defectdojo-mcp .
 diffs it against the pinned copy in `openapi/`. On Windows without `make`,
 run `scripts/refresh-schema.ps1` directly; it does the same thing.
 
-### Building with Podman on Windows
-
-`docker build`/`docker run` above work unchanged with Podman (`podman
-build`, `podman run`), once a Podman machine is actually running. On a
-Windows box without Hyper-V admin rights, Podman's default Hyper-V-backed
-machine won't start (`Hyper-V machines require Hyper-V admin rights`). Use a
-WSL-backed machine instead, which doesn't need elevation:
-
-```powershell
-podman machine init --provider wsl podman-wsl
-podman machine start podman-wsl
-podman system connection default podman-wsl
-```
-
-Tested this way: `podman build -t defectdojo-mcp:local .` produces a ~10MB
-image, and `podman run -p 8080:8080 -e DOJO_BASE_URL=... defectdojo-mcp:local`
-serves `/healthz` as expected.
+Podman works too: `podman build`/`podman run` are drop-in replacements for
+the `docker` commands above.
 
 ## License
 

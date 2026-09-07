@@ -1,8 +1,7 @@
 # DefectDojo MCP Server: Design & Roadmap
 
-Design reference for the project. Covers the decisions already made and why,
-the tool inventory, non-functional requirements, and the phased build plan.
-Phase 0 (repo scaffold) is done. Later phases build against this doc.
+Design reference for the project: why it's built the way it is, what the
+tools look like, and what's not built yet.
 
 ## 0. What this is, in one paragraph
 
@@ -14,7 +13,7 @@ add notes, manage tags. It also reaches every other operation the DefectDojo
 API exposes, without hand-writing 190+ one-off tool wrappers. Runs as a
 single Docker container speaking MCP over Streamable HTTP.
 
-## 1. Decisions already made (do not re-litigate these)
+## 1. Why these choices
 
 | Decision | Choice | Why |
 |---|---|---|
@@ -24,8 +23,9 @@ single Docker container speaking MCP over Streamable HTTP.
 | Auth model | **Per-caller token passthrough**, no shared token by default | The server takes the caller's own DefectDojo API token (via the MCP `Authorization` header) and forwards it as-is on the upstream call. DefectDojo's own RBAC and audit log (`mitigated_by`, `reporter`, notes authorship) then reflect the real person, not a shared service account. A single-shared-token mode exists for simple deployments but is off by default; see §7. |
 | Destructive ops | **Deny by default** | Raw `DELETE` operations (delete a product, a finding, a user...) are reachable only through the generic dispatch tool, and only when `DOJO_MCP_ENABLE_DESTRUCTIVE=true` is set. No curated tool ever issues a DELETE. `*_delete_preview` endpoints (dry-run of what a delete would remove) are always allowed since they're read-only. |
 
-If one of these should change, open an issue/discussion first. Don't swap in
-a different language or transport quietly.
+Open to revisiting any of these if a real constraint shows up. If you're
+thinking about swapping the language or transport, open an issue first so
+it's discussed rather than silently redone.
 
 ## 2. Source of truth for the API
 
@@ -112,10 +112,10 @@ Products, engagements, tests (context browsing, mostly read):
 - `dojo_list_engagements`, `dojo_get_engagement`, `dojo_close_engagement`, `dojo_reopen_engagement`
 - `dojo_list_tests`, `dojo_get_test`
 
-Scans (phase 3):
+Scans (not built yet, [#7](https://github.com/Ibrahimogod/defectdojo-mcp/issues/7)):
 - `dojo_import_scan` (engagement + scan_type + file), `dojo_reimport_scan` (test + file).
 
-JIRA (phase 3, only relevant if a JIRA instance is configured on the DefectDojo side):
+JIRA (not built yet, [#7](https://github.com/Ibrahimogod/defectdojo-mcp/issues/7), only relevant if a JIRA instance is configured on the DefectDojo side):
 - `dojo_push_finding_to_jira`, `dojo_get_finding_jira_mapping`.
 
 Discovery / generic dispatch, the full-coverage fallback:
@@ -199,42 +199,19 @@ Fallback, `DOJO_MCP_SHARED_TOKEN` set: if an incoming request has no
 config. This loses per-user attribution and should only be used for a
 trusted, single-tenant deployment.
 
-## 8. Phased delivery plan
+## 8. Roadmap
 
-Phase 0, scaffold (done): repo layout from §3, `go.mod`, Makefile, a
-`go generate` pipeline turning `openapi/defectdojo-schema.v3.2.100.json`
-into `dojoclient/generated.go` (oapi-codegen) and `registry/registry_gen.go`.
-Dockerfile and compose skeleton. `/healthz` only. CI skeleton (build, vet,
-test).
+Scaffold (repo layout, config, logging, health server, codegen pipeline,
+Docker, CI) is done. What's left is tracked as issues rather than spelled
+out here, since that's where it'll actually get updated as work happens:
 
-Phase 1, read path: `dojo_search_findings`, `dojo_get_finding`,
-`dojo_list_products/engagements/tests` plus their `get_*` counterparts,
-`dojo_list_finding_notes`, `dojo_get_finding_metadata`, and all three
-discovery/dispatch tools (`dojo_list_operations`, `dojo_describe_operation`,
-`dojo_call_operation`, GET-only at this phase). Mount the Streamable HTTP
-transport at `/mcp` (that path is already assumed by
-[docs/CLIENT_SETUP.md](CLIENT_SETUP.md); keep it in sync if it ever
-changes). Auth passthrough middleware live. `/readyz` live.
+- [#5](https://github.com/Ibrahimogod/defectdojo-mcp/issues/5): read path (search/get findings, products, engagements, tests, discovery tools)
+- [#6](https://github.com/Ibrahimogod/defectdojo-mcp/issues/6): triage/write path (update, close, verify, accept risk, notes, tags)
+- [#7](https://github.com/Ibrahimogod/defectdojo-mcp/issues/7): scans, JIRA, reporting
+- [#8](https://github.com/Ibrahimogod/defectdojo-mcp/issues/8): hardening (rate limiting, retries, redaction test, integration tests)
 
-Phase 2, triage/write path: `dojo_update_finding_status`,
-`dojo_close_finding`, `dojo_verify_finding`, `dojo_accept_finding_risk`,
-`dojo_add_finding_note`, `dojo_tag_finding` / `dojo_untag_finding`,
-`dojo_set_finding_metadata`, `dojo_mark_duplicate`, risk-acceptance
-list/expire/reinstate, engagement close/reopen. `safety` package enforces
-the destructive-op gate for the generic dispatch tool, which now also allows
-non-GET verbs. Full unit test coverage on `safety`.
-
-Phase 3, scans/JIRA/reporting: `dojo_import_scan`, `dojo_reimport_scan`,
-`dojo_generate_findings_report`, JIRA tools (skipped if no JIRA instance is
-configured on the target DefectDojo; detect via `/api/v2/jira_instances/`
-and degrade gracefully rather than failing hard).
-
-Phase 4, hardening and docs: rate limiting, retry/backoff, structured
-logging plus the token redaction test, integration test suite, CI green
-including the `go generate` diff-check, `docker-compose up` documented for
-local dev, README covering how to get a DefectDojo API token, how to point
-Claude Desktop/Code at the running server, the full tool list, and the
-`make refresh-schema` upgrade procedure.
+Roughly in that order, but not a hard commitment; whatever's most useful
+next wins.
 
 ## 9. Explicit non-goals (v1)
 
@@ -252,7 +229,7 @@ Claude Desktop/Code at the running server, the full tool list, and the
 ## 10. Open questions / follow-ups
 
 - Whether a given target DefectDojo instance actually has a JIRA integration
-  configured, which affects whether the Phase 3 JIRA tools are worth testing
+  configured, which affects whether the JIRA tools ([#7](https://github.com/Ibrahimogod/defectdojo-mcp/issues/7)) are worth testing
   against it.
 - Docker network reachability from the host running this container to
   whatever DefectDojo instance it's pointed at. Confirm before assuming a
