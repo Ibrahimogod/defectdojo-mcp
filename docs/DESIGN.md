@@ -11,16 +11,18 @@ project targets) and lets an LLM search, triage, and resolve security
 findings: mark false positives, accept risk, verify fixes, close findings,
 add notes, manage tags. It also reaches every other operation the DefectDojo
 API exposes, without hand-writing 190+ one-off tool wrappers. Runs as a
-single Docker container speaking MCP over Streamable HTTP.
+container over stdio by default, the same way any other containerized MCP
+server does; a Streamable HTTP mode is available too for a shared
+deployment reachable by more than one person.
 
 ## 1. Why these choices
 
 | Decision | Choice | Why |
 |---|---|---|
 | Language | **Go** | This workload is I/O-bound on DefectDojo's own response times, not compute-bound. Rust's runtime edge doesn't show up here, but its borrow-checker overhead does slow delivery. Go gives a static binary, a ~10-15MB distroless image, sub-second cold start, and a solid official MCP SDK (`github.com/modelcontextprotocol/go-sdk`) with much less ceremony than Rust's `rmcp`. |
-| Transport | **Streamable HTTP** (MCP's HTTP+SSE transport), not stdio | The server runs as one standing Docker container reachable by multiple users, not a per-session subprocess. stdio would need a container per client, which doesn't fit here. |
+| Transport | **stdio by default, Streamable HTTP as an option** | Every other MCP server in a typical setup (grafana's, github's) runs as a container the client launches per session over stdio, and matching that is simpler for the common case than requiring a standing service. HTTP stays available (`DOJO_MCP_TRANSPORT=http`) for a shared/team deployment reachable by more than one person from one running instance. Both share the same tool-handling code; only the transport adapter differs. |
 | API coverage | **Curated tools + generic dispatch**, not 190+ 1:1 tool wrappers | Exposing every DefectDojo operation as its own MCP tool would go past what LLMs can reliably pick from in a tool list. Instead: roughly 30 hand-crafted tools for the actual triage workflow (the 90% use case), plus 3 generic discovery/dispatch tools that can invoke any DefectDojo operation by `operationId`. Full functional coverage, without a 380-entry tool list. See §4. |
-| Auth model | **Per-caller token passthrough**, no shared token by default | The server takes the caller's own DefectDojo API token (via the MCP `Authorization` header) and forwards it as-is on the upstream call. DefectDojo's own RBAC and audit log (`mitigated_by`, `reporter`, notes authorship) then reflect the real person, not a shared service account. A single-shared-token mode exists for simple deployments but is off by default; see §7. |
+| Auth model | **One token per server instance**, matching the transport | For stdio, there's no such thing as "per caller"; each container is one person's own instance, so `DOJO_API_TOKEN` is a required env var, same pattern as `GITHUB_PERSONAL_ACCESS_TOKEN` or `GRAFANA_SERVICE_ACCOUNT_TOKEN` on other containerized MCP servers. For HTTP mode, where one instance really is shared across people, the primary mechanism is per-request passthrough of the caller's own token via the MCP `Authorization` header, with `DOJO_API_TOKEN` as an optional fallback. Either way, DefectDojo's own RBAC and audit log (`mitigated_by`, `reporter`, notes authorship) reflect the real person, not a shared service account. See §7. |
 | Destructive ops | **Deny by default** | Raw `DELETE` operations (delete a product, a finding, a user...) are reachable only through the generic dispatch tool, and only when `DOJO_MCP_ENABLE_DESTRUCTIVE=true` is set. No curated tool ever issues a DELETE. `*_delete_preview` endpoints (dry-run of what a delete would remove) are always allowed since they're read-only. |
 
 Open to revisiting any of these if a real constraint shows up. If you're
@@ -70,7 +72,7 @@ it's discussed rather than silently redone.
                                    # worth putting in front of an LLM. Both the generic dispatch
                                    # tool and the curated list tools call into this, so truncation
                                    # behavior lives in one place, not several
-    mcpserver/                   # Streamable HTTP transport wiring, auth middleware, health/readyz
+    mcpserver/                   # stdio and Streamable HTTP transport wiring, auth, health/readyz
     log/                         # structured logging (slog), token redaction
   openapi/
     defectdojo-schema.v3.2.100.json   # pinned schema
@@ -169,23 +171,35 @@ the three discovery/dispatch tools. That covers full coverage without a
 - Multi-stage `Dockerfile`. Build stage `golang`, `CGO_ENABLED=0 go build`,
   final stage `gcr.io/distroless/static-debian12`, non-root (`USER
   nonroot`), only the static binary in the image. Target under ~20MB.
-- `docker-compose.yml`: this service, configured entirely through
-  environment variables (see `.env.example`). No instance-specific defaults
-  baked in, since anyone running this points it at their own DefectDojo.
+- `docker-compose.yml`: runs the server in HTTP mode as a standing service,
+  configured entirely through environment variables (see `.env.example`).
+  No instance-specific defaults baked in, since anyone running this points
+  it at their own DefectDojo. The default stdio mode doesn't need Compose
+  at all: an MCP client launches the container itself, per session.
 - Config entirely via environment variables (12-factor style):
-  `DOJO_BASE_URL`, `DOJO_MCP_LISTEN_ADDR`, `DOJO_MCP_ENABLE_DESTRUCTIVE`,
-  `DOJO_MCP_SHARED_TOKEN` (optional, see §7), `DOJO_MCP_REQUEST_TIMEOUT`,
-  `DOJO_MCP_RATE_LIMIT_RPS`, `DOJO_MCP_LOG_LEVEL`.
+  `DOJO_BASE_URL`, `DOJO_MCP_TRANSPORT` (`stdio` default, or `http`),
+  `DOJO_MCP_LISTEN_ADDR` (http mode), `DOJO_MCP_ENABLE_DESTRUCTIVE`,
+  `DOJO_API_TOKEN` (required for stdio, optional fallback for http, see
+  §7), `DOJO_MCP_REQUEST_TIMEOUT`, `DOJO_MCP_RATE_LIMIT_RPS`,
+  `DOJO_MCP_LOG_LEVEL`.
 - Published images: `ghcr.io/ibrahimogod/defectdojo-mcp` (see
   `.github/workflows/publish.yml`).
 
 ## 7. Auth model detail
 
-Default, per-caller passthrough:
-1. The MCP client (Claude Desktop/Code config, or anything else) is set up
-   with this server's URL and an `Authorization: Token <the user's own
-   DefectDojo API key>` header. Each user generates their own key from their
-   DefectDojo profile.
+**stdio (default):** there's no per-request caller to distinguish since
+each container is one person's own instance, launched by their own MCP
+client. `DOJO_API_TOKEN` is a required env var; the server uses it for
+every upstream call for the life of that container. Same pattern as
+`GITHUB_PERSONAL_ACCESS_TOKEN`/`GRAFANA_SERVICE_ACCOUNT_TOKEN` on other
+containerized MCP servers. Per-user attribution still holds in DefectDojo's
+own history, since each person runs their own container with their own
+token.
+
+**HTTP (shared deployment), per-caller passthrough:**
+1. The MCP client is set up with this server's URL and an `Authorization:
+   Token <the user's own DefectDojo API key>` header. Each user generates
+   their own key from their DefectDojo profile.
 2. The MCP server's auth middleware extracts that header verbatim per
    request and hands it straight to `dojoclient` for the upstream call. The
    server itself never stores or needs a DefectDojo credential of its own.
@@ -194,9 +208,9 @@ Default, per-caller passthrough:
    read-only user can't accept risk, for instance) is enforced by DefectDojo
    itself, for free.
 
-Fallback, `DOJO_MCP_SHARED_TOKEN` set: if an incoming request has no
-`Authorization` header, fall back to a single service-account token from
-config. This loses per-user attribution and should only be used for a
+Fallback, `DOJO_API_TOKEN` set in HTTP mode: if an incoming request has no
+`Authorization` header, fall back to that single token from config. This
+loses per-user attribution and should only be used for a
 trusted, single-tenant deployment.
 
 ## 8. Roadmap

@@ -5,8 +5,9 @@ any other MCP client) search, triage, and resolve findings in a
 [DefectDojo](https://github.com/DefectDojo/django-DefectDojo) instance: mark
 false positives, accept risk, verify fixes, close findings, add notes,
 manage tags. It also reaches the rest of the DefectDojo API through a small
-set of generic discovery tools. Written in Go, runs as a single Docker
-container speaking MCP over Streamable HTTP.
+set of generic discovery tools. Written in Go, runs as a container your MCP
+client launches per session over stdio, the same way you'd run any other
+containerized MCP server.
 
 See [docs/DESIGN.md](docs/DESIGN.md) for the design rationale and tool
 inventory.
@@ -20,28 +21,31 @@ the server only exposes `/healthz`.
 ## Running it
 
 Requires a DefectDojo instance and a DefectDojo API token (`Authorization:
-Token <key>`, from your DefectDojo user profile).
+Token <key>`, from your DefectDojo user profile). Your MCP client launches
+the container for you. See
+[docs/CLIENT_SETUP.md](docs/CLIENT_SETUP.md) for exact config for Claude
+Code, Claude Desktop, Cursor, VS Code (Copilot), Windsurf, and other MCP
+clients. The shape is always the same:
+
+```bash
+docker run -i --rm \
+  -e DOJO_BASE_URL=https://defectdojo.example.com \
+  -e DOJO_API_TOKEN=your-defectdojo-api-token \
+  ghcr.io/ibrahimogod/defectdojo-mcp
+```
+
+Running it as a standing network service instead (for a shared deployment
+reachable by more than one person) is also supported. Set
+`DOJO_MCP_TRANSPORT=http` and see
+[docs/CLIENT_SETUP.md's HTTP section](docs/CLIENT_SETUP.md#running-as-a-standing-http-service-instead)
+and [docs/DESIGN.md §7](docs/DESIGN.md#7-auth-model-detail) for that mode's
+auth model. `docker-compose.yml` in this repo is set up for that case:
 
 ```bash
 cp .env.example .env
 # edit .env: set DOJO_BASE_URL to your DefectDojo instance
 docker compose up --build
 ```
-
-Or without Compose:
-
-```bash
-docker run --rm -p 8080:8080 \
-  -e DOJO_BASE_URL=https://defectdojo.example.com \
-  ghcr.io/ibrahimogod/defectdojo-mcp:latest
-```
-
-Point your MCP client at `http://localhost:8080/mcp` with an `Authorization:
-Token <your-defectdojo-api-key>` header. See
-[docs/DESIGN.md §7](docs/DESIGN.md#7-auth-model-detail) for the auth model,
-and [docs/CLIENT_SETUP.md](docs/CLIENT_SETUP.md) for exact steps for Claude
-Code, Claude Desktop, Cursor, VS Code (Copilot), Windsurf, and other MCP
-clients.
 
 ## Building from source
 

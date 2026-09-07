@@ -4,9 +4,17 @@ services:
     ports:
       - "8080:8080"
     environment:
+      # This compose file runs the server as a standing HTTP service (for a
+      # shared deployment) rather than the per-session stdio mode most MCP
+      # clients use by default. See docs/CLIENT_SETUP.md.
+      DOJO_MCP_TRANSPORT: "http"
       # Point this at your own DefectDojo instance, e.g. https://defectdojo.example.com
       DOJO_BASE_URL: ${DOJO_BASE_URL:?set DOJO_BASE_URL to your DefectDojo instance URL}
       DOJO_MCP_LISTEN_ADDR: ":8080"
+      # Optional: fallback token used only when a request arrives with no
+      # Authorization header of its own. Leave unset to require every caller
+      # to supply their own DefectDojo token.
+      # DOJO_API_TOKEN: ""
       DOJO_MCP_ENABLE_DESTRUCTIVE: "false"
       DOJO_MCP_REQUEST_TIMEOUT: "30s"
       DOJO_MCP_RATE_LIMIT_RPS: "5"
