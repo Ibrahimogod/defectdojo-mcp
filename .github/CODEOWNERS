@@ -1,0 +1,4 @@
+# Workflow files always need @Ibrahimogod's review, regardless of who else
+# approves a PR. These touch secrets.GITHUB_TOKEN and control what gets
+# published to ghcr.io.
+/.github/workflows/ @Ibrahimogod
