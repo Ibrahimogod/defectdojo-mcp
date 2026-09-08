@@ -104,3 +104,4 @@ run `scripts/refresh-schema.ps1` directly; it does the same thing.
 ## License
 
 [MIT](LICENSE)
+# bypass test, will be reverted immediately
