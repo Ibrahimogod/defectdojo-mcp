@@ -86,14 +86,14 @@ type DescribeOperationInput struct {
 }
 
 type DescribeOperationOutput struct {
-	OperationID       string          `json:"operation_id"`
-	Method            string          `json:"method"`
-	Path              string          `json:"path"`
-	Tag               string          `json:"tag"`
-	Summary           string          `json:"summary,omitempty"`
-	Parameters        json.RawMessage `json:"parameters,omitempty"`
-	RequestBodySchema json.RawMessage `json:"request_body_schema,omitempty"`
-	ResponseSchema    json.RawMessage `json:"response_schema,omitempty"`
+	OperationID       string `json:"operation_id"`
+	Method            string `json:"method"`
+	Path              string `json:"path"`
+	Tag               string `json:"tag"`
+	Summary           string `json:"summary,omitempty"`
+	Parameters        any    `json:"parameters,omitempty" jsonschema:"the operation's parameters, straight from the pinned OpenAPI document"`
+	RequestBodySchema any    `json:"request_body_schema,omitempty" jsonschema:"the operation's request body schema, if it takes one"`
+	ResponseSchema    any    `json:"response_schema,omitempty" jsonschema:"the operation's response schema"`
 }
 
 func describeOperationHandler(deps *Deps) mcp.ToolHandlerFor[DescribeOperationInput, DescribeOperationOutput] {
@@ -108,9 +108,9 @@ func describeOperationHandler(deps *Deps) mcp.ToolHandlerFor[DescribeOperationIn
 			Path:              op.Path,
 			Tag:               op.Tag,
 			Summary:           op.Summary,
-			Parameters:        op.Parameters,
-			RequestBodySchema: op.RequestBodySchema,
-			ResponseSchema:    op.ResponseSchema,
+			Parameters:        rawJSONToAny(op.Parameters),
+			RequestBodySchema: rawJSONToAny(op.RequestBodySchema),
+			ResponseSchema:    rawJSONToAny(op.ResponseSchema),
 		}, nil
 	}
 }
@@ -152,6 +152,20 @@ func callOperationHandler(deps *Deps) mcp.ToolHandlerFor[CallOperationInput, any
 		}
 		return nil, result, nil
 	}
+}
+
+// rawJSONToAny decodes a json.RawMessage into a plain Go value, so the
+// SDK's schema reflection sees "arbitrary JSON" rather than treating the
+// underlying []byte as an array of small integers.
+func rawJSONToAny(raw json.RawMessage) any {
+	if len(raw) == 0 {
+		return nil
+	}
+	var v any
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return string(raw)
+	}
+	return v
 }
 
 func findOperation(deps *Deps, operationID string) (registry.OperationEntry, bool) {
