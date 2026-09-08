@@ -130,32 +130,43 @@ type findingNotesResponse struct {
 	Notes     []map[string]any `json:"notes"`
 }
 
-func listFindingNotesHandler(deps *Deps) mcp.ToolHandlerFor[FindingIDInput, []map[string]any] {
-	return func(ctx context.Context, req *mcp.CallToolRequest, in FindingIDInput) (*mcp.CallToolResult, []map[string]any, error) {
+// ListFindingNotesOutput and FindingMetadataOutput wrap their array in an
+// object: MCP structured tool output must be a JSON object at the top
+// level, a bare array (or null) fails Claude's tools/list validation.
+type ListFindingNotesOutput struct {
+	Notes []map[string]any `json:"notes"`
+}
+
+func listFindingNotesHandler(deps *Deps) mcp.ToolHandlerFor[FindingIDInput, ListFindingNotesOutput] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, in FindingIDInput) (*mcp.CallToolResult, ListFindingNotesOutput, error) {
 		auth, err := authHeader(req, deps)
 		if err != nil {
-			return nil, nil, err
+			return nil, ListFindingNotesOutput{}, err
 		}
 		var resp findingNotesResponse
 		path := fmt.Sprintf("/api/v2/findings/%d/notes/", in.ID)
 		if err := deps.Client.Get(ctx, auth, path, nil, &resp); err != nil {
-			return nil, nil, err
+			return nil, ListFindingNotesOutput{}, err
 		}
-		return nil, resp.Notes, nil
+		return nil, ListFindingNotesOutput{Notes: resp.Notes}, nil
 	}
 }
 
-func getFindingMetadataHandler(deps *Deps) mcp.ToolHandlerFor[FindingIDInput, []map[string]any] {
-	return func(ctx context.Context, req *mcp.CallToolRequest, in FindingIDInput) (*mcp.CallToolResult, []map[string]any, error) {
+type FindingMetadataOutput struct {
+	Metadata []map[string]any `json:"metadata"`
+}
+
+func getFindingMetadataHandler(deps *Deps) mcp.ToolHandlerFor[FindingIDInput, FindingMetadataOutput] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, in FindingIDInput) (*mcp.CallToolResult, FindingMetadataOutput, error) {
 		auth, err := authHeader(req, deps)
 		if err != nil {
-			return nil, nil, err
+			return nil, FindingMetadataOutput{}, err
 		}
 		var meta []map[string]any
 		path := fmt.Sprintf("/api/v2/findings/%d/metadata/", in.ID)
 		if err := deps.Client.Get(ctx, auth, path, nil, &meta); err != nil {
-			return nil, nil, err
+			return nil, FindingMetadataOutput{}, err
 		}
-		return nil, meta, nil
+		return nil, FindingMetadataOutput{Metadata: meta}, nil
 	}
 }
