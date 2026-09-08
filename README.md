@@ -24,10 +24,7 @@ adding a note).
 
 Requires a DefectDojo instance and a DefectDojo API token (`Authorization:
 Token <key>`, from your DefectDojo user profile). Your MCP client launches
-the container for you. See
-[docs/CLIENT_SETUP.md](docs/CLIENT_SETUP.md) for exact config for Claude
-Code, Claude Desktop, Cursor, VS Code (Copilot), Windsurf, and other MCP
-clients. The shape is always the same:
+the container for you; the shape is always the same:
 
 ```bash
 docker run -i --rm \
@@ -36,8 +33,44 @@ docker run -i --rm \
   ghcr.io/ibrahimogod/defectdojo-mcp
 ```
 
-Running it as a standing network service instead (for a shared deployment
-reachable by more than one person) is also supported. Set
+### Connecting an AI client
+
+**Claude Desktop**: add this to `claude_desktop_config.json`
+(`%APPDATA%\Claude\claude_desktop_config.json` on Windows,
+`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS),
+then restart Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "defectdojo": {
+      "command": "docker",
+      "args": ["run", "--init", "-i", "--rm", "-e", "DOJO_BASE_URL", "-e", "DOJO_API_TOKEN", "ghcr.io/ibrahimogod/defectdojo-mcp"],
+      "env": {
+        "DOJO_BASE_URL": "https://defectdojo.example.com",
+        "DOJO_API_TOKEN": "your-defectdojo-api-token"
+      }
+    }
+  }
+}
+```
+
+**Claude Code (CLI)**:
+
+```bash
+claude mcp add defectdojo \
+  -e DOJO_BASE_URL=https://defectdojo.example.com \
+  -e DOJO_API_TOKEN=your-defectdojo-api-token \
+  -- docker run -i --rm -e DOJO_BASE_URL -e DOJO_API_TOKEN ghcr.io/ibrahimogod/defectdojo-mcp
+```
+
+Cursor, VS Code (Copilot), Windsurf, Zed, Cline, Continue.dev, JetBrains AI
+Assistant, Gemini CLI, or anything else: see
+[docs/CLIENT_SETUP.md](docs/CLIENT_SETUP.md) for exact config.
+
+### Running it as a standing service instead
+
+For a shared deployment reachable by more than one person, set
 `DOJO_MCP_TRANSPORT=http` and see
 [docs/CLIENT_SETUP.md's HTTP section](docs/CLIENT_SETUP.md#running-as-a-standing-http-service-instead)
 and [docs/DESIGN.md §7](docs/DESIGN.md#7-auth-model-detail) for that mode's
