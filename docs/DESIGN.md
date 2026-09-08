@@ -54,9 +54,8 @@ it's discussed rather than silently redone.
     server/main.go              # entrypoint: config load, wire everything, start HTTP server
   internal/
     config/                     # env-based config struct + validation
-    dojoclient/                 # generated typed REST client (oapi-codegen) + hand-written helpers
-      generated.go              # go:generate output, do not hand-edit
-      client.go                 # thin wrapper: retries, timeouts, error mapping, pagination helpers
+    dojoclient/                 # small hand-written REST client, no generated code
+      client.go                 # Get/Do against DefectDojo, auth header in, decoded JSON out
     registry/                   # operation registry built from the same OpenAPI doc at build time
       registry.go               # operationId -> {method, path, params, request/response schema}
       registry_gen.go            # go:generate output embedding the pruned schema
@@ -123,7 +122,7 @@ JIRA (not built yet, [#7](https://github.com/Ibrahimogod/defectdojo-mcp/issues/7
 Discovery / generic dispatch, the full-coverage fallback:
 - `dojo_list_operations(tag?, query?)`. Lists all DefectDojo operations (operationId, method, path, tag, one-line summary) from the embedded registry, optionally filtered.
 - `dojo_describe_operation(operationId)`. Returns the full parameter/request-body/response schema for one operation, straight from the pinned OpenAPI doc.
-- `dojo_call_operation(operationId, path_params?, query_params?, body?)`. Validates inputs against the schema, executes through `dojoclient`, returns a summarized, size-capped response. Refuses `DELETE` operations unless `DOJO_MCP_ENABLE_DESTRUCTIVE=true`. Always logs operationId and caller identity, never the token, at info level.
+- `dojo_call_operation(operationId, path_params?, query_params?)`. Executes through `dojoclient`, returns a size-capped response. Only GET operations are allowed for now; write support (and the `DOJO_MCP_ENABLE_DESTRUCTIVE`-gated DELETE allowance specifically) lands with the write path.
 
 Every DefectDojo operation not in the curated list (user management,
 notifications, SLA configs, endpoints, languages, technologies, network

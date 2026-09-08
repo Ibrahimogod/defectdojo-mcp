@@ -1,28 +1,51 @@
-// Package mcpserver wires the HTTP transport this server exposes: health
-// endpoints today, the Streamable HTTP MCP transport from Phase 1 onward.
+// Package mcpserver wires the MCP protocol itself (stdio and Streamable
+// HTTP transports, both backed by the same tool-handling code) plus the
+// health/readiness endpoints HTTP mode exposes alongside it.
 package mcpserver
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
+	"time"
+
+	"github.com/ibrahimogod/defectdojo-mcp/internal/dojoclient"
+	"github.com/ibrahimogod/defectdojo-mcp/internal/mcptools"
+	"github.com/ibrahimogod/defectdojo-mcp/internal/registry"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-type Server struct {
-	httpServer *http.Server
-	logger     *slog.Logger
+// New builds the *mcp.Server with every curated and discovery tool
+// registered. fallbackAuth is the full Authorization header value to use
+// when a call carries none of its own ("" if none configured).
+func New(client *dojoclient.Client, fallbackAuth string) *mcp.Server {
+	server := mcp.NewServer(&mcp.Implementation{Name: "defectdojo-mcp"}, nil)
+	mcptools.RegisterAll(server, &mcptools.Deps{
+		Client:       client,
+		Registry:     registry.All(),
+		FallbackAuth: fallbackAuth,
+	})
+	return server
 }
 
-func New(addr string, logger *slog.Logger) *Server {
+// RunStdio runs server over stdio until the client disconnects or ctx is
+// cancelled.
+func RunStdio(ctx context.Context, server *mcp.Server) error {
+	return server.Run(ctx, &mcp.StdioTransport{})
+}
+
+// HTTPServer exposes /healthz, /readyz, and the MCP server itself at /mcp.
+type HTTPServer struct {
+	httpServer *http.Server
+}
+
+func NewHTTPServer(addr string, server *mcp.Server, dojoBaseURL string, readyTimeout time.Duration) *HTTPServer {
 	mux := http.NewServeMux()
 	registerRoutes(mux)
+	mux.HandleFunc("/readyz", handleReadyz(dojoBaseURL, readyTimeout))
+	mux.Handle("/mcp", mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil))
 
-	return &Server{
-		httpServer: &http.Server{
-			Addr:    addr,
-			Handler: mux,
-		},
-		logger: logger,
+	return &HTTPServer{
+		httpServer: &http.Server{Addr: addr, Handler: mux},
 	}
 }
 
@@ -35,14 +58,31 @@ func handleHealthz(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte("ok"))
 }
 
-func (s *Server) Addr() string {
-	return s.httpServer.Addr
+// handleReadyz confirms DefectDojo is reachable, not that the caller is
+// authenticated: any HTTP response (even 401/403/404) counts as ready,
+// since readiness has no caller-specific credential to check in HTTP mode.
+// Only a connection-level failure counts as not ready.
+func handleReadyz(dojoBaseURL string, timeout time.Duration) http.HandlerFunc {
+	client := &http.Client{Timeout: timeout}
+	return func(w http.ResponseWriter, r *http.Request) {
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, dojoBaseURL+"/api/v2/", nil)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			http.Error(w, "defectdojo unreachable: "+err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		defer resp.Body.Close()
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	}
 }
 
-func (s *Server) ListenAndServe() error {
-	return s.httpServer.ListenAndServe()
-}
+func (s *HTTPServer) Addr() string { return s.httpServer.Addr }
 
-func (s *Server) Shutdown(ctx context.Context) error {
-	return s.httpServer.Shutdown(ctx)
-}
+func (s *HTTPServer) ListenAndServe() error { return s.httpServer.ListenAndServe() }
+
+func (s *HTTPServer) Shutdown(ctx context.Context) error { return s.httpServer.Shutdown(ctx) }

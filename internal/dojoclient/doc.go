@@ -1,7 +1,6 @@
-// Package dojoclient holds the oapi-codegen-generated typed REST client
-// (generated.go) plus hand-written helpers on top of it (retries, timeouts,
-// error mapping, pagination) added starting Phase 1.
+// Package dojoclient is a small hand-written REST client for the
+// DefectDojo API. The curated MCP tools use its typed-ish helpers; the
+// generic dispatch tools (dojo_call_operation) use Do directly against
+// whatever method/path the operation registry describes, since those
+// aren't known until request time.
 package dojoclient
-
-//go:generate go run ./gen ../../openapi/defectdojo-schema.v3.2.100.json schema.sanitized.json
-//go:generate go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen -config oapi-codegen.yaml schema.sanitized.json

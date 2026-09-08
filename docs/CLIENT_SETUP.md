@@ -10,10 +10,10 @@ long-running process or a port yourself.
 3. The image: `ghcr.io/ibrahimogod/defectdojo-mcp` (or build it yourself,
    see the main [README](../README.md)).
 
-> **Not usable yet.** The MCP protocol itself isn't wired up in the server
-> code yet (see [DESIGN.md §8](DESIGN.md#8-roadmap)); today the container
-> only exposes a health check. The configs below are what to use once that
-> ships; until then, connecting will fail to find any tools.
+**Read-only for now.** Search and inspect findings, products, engagements,
+and tests; nothing here can change anything in DefectDojo yet. Triage
+actions (closing a finding, accepting risk, adding a note, and so on) are
+tracked as the next phase in [DESIGN.md §8](DESIGN.md#8-roadmap).
 
 Client configuration formats change often. If something below doesn't match
 what you see in your client, check that client's own current MCP docs

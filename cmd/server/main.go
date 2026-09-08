@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/ibrahimogod/defectdojo-mcp/internal/config"
+	"github.com/ibrahimogod/defectdojo-mcp/internal/dojoclient"
 	applog "github.com/ibrahimogod/defectdojo-mcp/internal/log"
 	"github.com/ibrahimogod/defectdojo-mcp/internal/mcpserver"
 )
@@ -21,15 +22,32 @@ func main() {
 	}
 
 	logger := applog.New(cfg.LogLevel)
-	srv := mcpserver.New(cfg.ListenAddr, logger)
+	client := dojoclient.New(cfg.DojoBaseURL, cfg.RequestTimeout)
+
+	var fallbackAuth string
+	if cfg.APIToken != "" {
+		fallbackAuth = "Token " + cfg.APIToken
+	}
+
+	server := mcpserver.New(client, fallbackAuth)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	if cfg.Transport == config.TransportStdio {
+		if err := mcpserver.RunStdio(ctx, server); err != nil {
+			logger.Error("server error", "error", err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	httpSrv := mcpserver.NewHTTPServer(cfg.ListenAddr, server, cfg.DojoBaseURL, cfg.RequestTimeout)
+
 	errCh := make(chan error, 1)
 	go func() {
-		logger.Info("listening", "addr", srv.Addr())
-		errCh <- srv.ListenAndServe()
+		logger.Info("listening", "addr", httpSrv.Addr())
+		errCh <- httpSrv.ListenAndServe()
 	}()
 
 	select {
@@ -40,7 +58,7 @@ func main() {
 		}
 	case <-ctx.Done():
 		logger.Info("shutting down")
-		if err := srv.Shutdown(context.Background()); err != nil {
+		if err := httpSrv.Shutdown(context.Background()); err != nil {
 			logger.Error("shutdown error", "error", err)
 			os.Exit(1)
 		}

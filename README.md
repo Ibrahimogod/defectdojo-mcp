@@ -14,9 +14,11 @@ inventory.
 
 ## Status
 
-Early scaffold. Open [issues](https://github.com/Ibrahimogod/defectdojo-mcp/issues)
-track what's next; the MCP tools themselves aren't wired up yet, so today
-the server only exposes `/healthz`.
+Read-only: search and inspect findings, products, engagements, and tests.
+Nothing here can change anything in DefectDojo yet. Open
+[issues](https://github.com/Ibrahimogod/defectdojo-mcp/issues) track what's
+next, starting with triage actions (closing a finding, accepting risk,
+adding a note).
 
 ## Running it
 
