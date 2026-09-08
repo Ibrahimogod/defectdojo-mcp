@@ -63,6 +63,15 @@ func summarizeTest(full map[string]any) map[string]any {
 	return pick(full, testSummaryFields)
 }
 
+var riskAcceptanceSummaryFields = []string{
+	"id", "name", "decision", "accepted_by", "owner", "expiration_date",
+	"accepted_findings",
+}
+
+func summarizeRiskAcceptance(full map[string]any) map[string]any {
+	return pick(full, riskAcceptanceSummaryFields)
+}
+
 // normalizeLimit caps limit to a sane default and hard maximum, matching
 // DESIGN.md's pagination-safety requirement: no list tool ever lets a
 // caller pull an unbounded number of results in one call.

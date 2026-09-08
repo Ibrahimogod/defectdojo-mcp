@@ -31,7 +31,7 @@ func registerDiscoveryTools(server *mcp.Server, deps *Deps) {
 
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "dojo_call_operation",
-		Description: "Call any DefectDojo API GET operation by operationId. Only GET operations are allowed for now; write support is a later phase. Prefer a curated tool when one exists for what you're doing.",
+		Description: "Call any DefectDojo API operation by operationId, including writes. DELETE is blocked unless the server was started with DOJO_MCP_ENABLE_DESTRUCTIVE=true. Prefer a curated tool when one exists for what you're doing.",
 	}, callOperationHandler(deps))
 }
 
@@ -127,7 +127,7 @@ func callOperationHandler(deps *Deps) mcp.ToolHandlerFor[CallOperationInput, any
 		if !ok {
 			return nil, nil, fmt.Errorf("unknown operation_id %q; use dojo_list_operations to find valid ids", in.OperationID)
 		}
-		if err := safety.AllowMethod(op.Method); err != nil {
+		if err := safety.AllowMethod(op.Method, deps.EnableDestructive); err != nil {
 			return nil, nil, err
 		}
 

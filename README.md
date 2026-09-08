@@ -14,11 +14,13 @@ inventory.
 
 ## Status
 
-Read-only: search and inspect findings, products, engagements, and tests.
-Nothing here can change anything in DefectDojo yet. Open
+Search and inspect findings, products, engagements, and tests, plus the full
+triage/write path: update status, close, verify, accept risk, add notes,
+manage tags and metadata, mark duplicates, close/reopen engagements. Raw
+`DELETE` operations stay off by default, reachable only through the generic
+dispatch tool and only when `DOJO_MCP_ENABLE_DESTRUCTIVE=true` is set. Open
 [issues](https://github.com/Ibrahimogod/defectdojo-mcp/issues) track what's
-next, starting with triage actions (closing a finding, accepting risk,
-adding a note).
+next: scans, JIRA integration, reporting, and further hardening.
 
 ## Running it
 
