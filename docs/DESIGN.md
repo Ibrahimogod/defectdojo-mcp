@@ -122,7 +122,7 @@ JIRA (not built yet, [#7](https://github.com/Ibrahimogod/defectdojo-mcp/issues/7
 Discovery / generic dispatch, the full-coverage fallback:
 - `dojo_list_operations(tag?, query?)`. Lists all DefectDojo operations (operationId, method, path, tag, one-line summary) from the embedded registry, optionally filtered.
 - `dojo_describe_operation(operationId)`. Returns the full parameter/request-body/response schema for one operation, straight from the pinned OpenAPI doc.
-- `dojo_call_operation(operationId, path_params?, query_params?)`. Executes through `dojoclient`, returns a size-capped response. Only GET operations are allowed for now; write support (and the `DOJO_MCP_ENABLE_DESTRUCTIVE`-gated DELETE allowance specifically) lands with the write path.
+- `dojo_call_operation(operationId, path_params?, query_params?)`. Executes through `dojoclient`, returns a size-capped response. GET/POST/PATCH/PUT are always allowed; DELETE is blocked unless `DOJO_MCP_ENABLE_DESTRUCTIVE=true` is set.
 
 Every DefectDojo operation not in the curated list (user management,
 notifications, SLA configs, endpoints, languages, technologies, network
@@ -214,12 +214,13 @@ trusted, single-tenant deployment.
 
 ## 8. Roadmap
 
-Scaffold and the read path (search/get findings, products, engagements,
-tests, discovery tools) are done. What's left is tracked as issues rather
-than spelled out here, since that's where it'll actually get updated as
-work happens:
+Scaffold, the read path (search/get findings, products, engagements, tests,
+discovery tools), and the triage/write path
+([#6](https://github.com/Ibrahimogod/defectdojo-mcp/issues/6): update,
+close, verify, accept risk, notes, tags) are done. What's left is tracked as
+issues rather than spelled out here, since that's where it'll actually get
+updated as work happens:
 
-- [#6](https://github.com/Ibrahimogod/defectdojo-mcp/issues/6): triage/write path (update, close, verify, accept risk, notes, tags)
 - [#7](https://github.com/Ibrahimogod/defectdojo-mcp/issues/7): scans, JIRA, reporting
 - [#8](https://github.com/Ibrahimogod/defectdojo-mcp/issues/8): hardening (rate limiting, retries, redaction test, integration tests)
 

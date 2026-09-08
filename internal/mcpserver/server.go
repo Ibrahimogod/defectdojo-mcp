@@ -17,12 +17,14 @@ import (
 // New builds the *mcp.Server with every curated and discovery tool
 // registered. fallbackAuth is the full Authorization header value to use
 // when a call carries none of its own ("" if none configured).
-func New(client *dojoclient.Client, fallbackAuth string) *mcp.Server {
+// enableDestructive gates DELETE through dojo_call_operation.
+func New(client *dojoclient.Client, fallbackAuth string, enableDestructive bool) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{Name: "defectdojo-mcp"}, nil)
 	mcptools.RegisterAll(server, &mcptools.Deps{
-		Client:       client,
-		Registry:     registry.All(),
-		FallbackAuth: fallbackAuth,
+		Client:            client,
+		Registry:          registry.All(),
+		FallbackAuth:      fallbackAuth,
+		EnableDestructive: enableDestructive,
 	})
 	return server
 }

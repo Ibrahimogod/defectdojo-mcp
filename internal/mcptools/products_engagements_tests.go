@@ -38,6 +38,16 @@ func registerProductsEngagementsTestsTools(server *mcp.Server, deps *Deps) {
 		Name:        "dojo_get_test",
 		Description: "Get full detail for one DefectDojo test by id.",
 	}, getTestHandler(deps))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "dojo_close_engagement",
+		Description: "Close a DefectDojo engagement.",
+	}, closeEngagementHandler(deps))
+
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "dojo_reopen_engagement",
+		Description: "Reopen a closed DefectDojo engagement.",
+	}, reopenEngagementHandler(deps))
 }
 
 type listPage struct {
@@ -205,5 +215,39 @@ func getTestHandler(deps *Deps) mcp.ToolHandlerFor[IDInput, map[string]any] {
 			return nil, nil, err
 		}
 		return nil, full, nil
+	}
+}
+
+// EngagementActionOutput: close/reopen return 200 with no documented body,
+// so there's nothing to echo back beyond confirming it worked.
+type EngagementActionOutput struct {
+	OK bool `json:"ok"`
+}
+
+func closeEngagementHandler(deps *Deps) mcp.ToolHandlerFor[IDInput, EngagementActionOutput] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, in IDInput) (*mcp.CallToolResult, EngagementActionOutput, error) {
+		auth, err := authHeader(req, deps)
+		if err != nil {
+			return nil, EngagementActionOutput{}, err
+		}
+		path := fmt.Sprintf("/api/v2/engagements/%d/close/", in.ID)
+		if err := deps.Client.Do(ctx, "POST", auth, path, nil, nil, nil); err != nil {
+			return nil, EngagementActionOutput{}, err
+		}
+		return nil, EngagementActionOutput{OK: true}, nil
+	}
+}
+
+func reopenEngagementHandler(deps *Deps) mcp.ToolHandlerFor[IDInput, EngagementActionOutput] {
+	return func(ctx context.Context, req *mcp.CallToolRequest, in IDInput) (*mcp.CallToolResult, EngagementActionOutput, error) {
+		auth, err := authHeader(req, deps)
+		if err != nil {
+			return nil, EngagementActionOutput{}, err
+		}
+		path := fmt.Sprintf("/api/v2/engagements/%d/reopen/", in.ID)
+		if err := deps.Client.Do(ctx, "POST", auth, path, nil, nil, nil); err != nil {
+			return nil, EngagementActionOutput{}, err
+		}
+		return nil, EngagementActionOutput{OK: true}, nil
 	}
 }

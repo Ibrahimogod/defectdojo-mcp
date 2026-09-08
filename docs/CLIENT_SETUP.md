@@ -10,10 +10,10 @@ long-running process or a port yourself.
 3. The image: `ghcr.io/ibrahimogod/defectdojo-mcp` (or build it yourself,
    see the main [README](../README.md)).
 
-**Read-only for now.** Search and inspect findings, products, engagements,
-and tests; nothing here can change anything in DefectDojo yet. Triage
-actions (closing a finding, accepting risk, adding a note, and so on) are
-tracked as the next phase in [DESIGN.md §8](DESIGN.md#8-roadmap).
+Search and inspect findings, products, engagements, and tests, plus the full
+triage/write path: close a finding, accept risk, verify, add notes, manage
+tags, and more. See [DESIGN.md §4](DESIGN.md#4-tool-inventory-roughly-30-curated-tools) for
+the full tool list and [DESIGN.md §8](DESIGN.md#8-roadmap) for what's next.
 
 Client configuration formats change often. If something below doesn't match
 what you see in your client, check that client's own current MCP docs

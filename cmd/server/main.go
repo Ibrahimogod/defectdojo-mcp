@@ -29,7 +29,7 @@ func main() {
 		fallbackAuth = "Token " + cfg.APIToken
 	}
 
-	server := mcpserver.New(client, fallbackAuth)
+	server := mcpserver.New(client, fallbackAuth, cfg.EnableDestructive)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
