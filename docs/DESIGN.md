@@ -214,11 +214,11 @@ trusted, single-tenant deployment.
 
 ## 8. Roadmap
 
-Scaffold (repo layout, config, logging, health server, codegen pipeline,
-Docker, CI) is done. What's left is tracked as issues rather than spelled
-out here, since that's where it'll actually get updated as work happens:
+Scaffold and the read path (search/get findings, products, engagements,
+tests, discovery tools) are done. What's left is tracked as issues rather
+than spelled out here, since that's where it'll actually get updated as
+work happens:
 
-- [#5](https://github.com/Ibrahimogod/defectdojo-mcp/issues/5): read path (search/get findings, products, engagements, tests, discovery tools)
 - [#6](https://github.com/Ibrahimogod/defectdojo-mcp/issues/6): triage/write path (update, close, verify, accept risk, notes, tags)
 - [#7](https://github.com/Ibrahimogod/defectdojo-mcp/issues/7): scans, JIRA, reporting
 - [#8](https://github.com/Ibrahimogod/defectdojo-mcp/issues/8): hardening (rate limiting, retries, redaction test, integration tests)
